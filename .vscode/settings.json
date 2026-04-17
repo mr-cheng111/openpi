@@ -1,11 +1,17 @@
 {
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff",
-        "editor.formatOnSave": true,
+        "editor.formatOnSave": true
     },
     "python.testing.pytestArgs": [
         "src"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "chatgpt.openOnStartup": true,
+    "chatgpt.localeOverride": "zh-CN",
+    "chatgpt.composerEnterBehavior": "cmdIfMultiline",
+    "chatgpt.followUpQueueMode": "queue",
+    "chatgpt.reviewDelivery": "inline",
+    "chatgpt.commentCodeLensEnabled": true
 }
