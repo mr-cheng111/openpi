@@ -112,6 +112,16 @@ Definition of done:
 - [ ] Define experiment naming and checkpoint retention policy
 - [ ] Set deterministic seed strategy for reproducibility
 
+### 4.3 Code integration checklist (pi0.5 for Raytron)
+- [x] Add `src/openpi/policies/raytron_policy.py` with `RaytronInputs` and `RaytronOutputs`
+- [x] Map 3 RGB cameras to model image slots: `head_rgb -> base_0_rgb`, `left_arm_rgb -> left_wrist_0_rgb`, `right_arm_rgb -> right_wrist_0_rgb`
+- [x] Add `LeRobotRaytronDataConfig` in `src/openpi/training/config.py`
+- [x] Add dataset repack mapping for Raytron LeRobot keys (`observation.images.*`, `observation.state`, `action`, `prompt`)
+- [x] Register new train config `pi05_raytron_mujoco` in `_CONFIGS`
+- [x] Set base weight loader to `gs://openpi-assets/checkpoints/pi05_base/params`
+- [ ] Run `compute_norm_stats` with `pi05_raytron_mujoco` and fix any schema mismatches
+- [ ] Run a short sanity train and verify action output is exactly 14D after output transform
+
 Definition of done:
 - [ ] `config-name` is runnable and documented
 - [ ] Artifact path layout is fixed

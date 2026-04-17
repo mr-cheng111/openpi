@@ -20,6 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.raytron_policy as raytron_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -261,6 +262,67 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
             outputs=[aloha_policy.AlohaOutputs(adapt_to_pi=self.adapt_to_pi)],
         )
         if self.use_delta_joint_actions:
+            delta_action_mask = _transforms.make_bool_mask(6, -1, 6, -1)
+            data_transforms = data_transforms.push(
+                inputs=[_transforms.DeltaActions(delta_action_mask)],
+                outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+            )
+
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=self.repack_transforms,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+            action_sequence_keys=self.action_sequence_keys,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotRaytronDataConfig(DataConfigFactory):
+    # If true, joint dimensions are converted from absolute to delta actions.
+    # Gripper dimensions remain absolute.
+    use_delta_joint_actions: bool = True
+    # If provided, this prompt will be injected when sample data doesn't provide one.
+    default_prompt: str | None = None
+    # Action keys that will be used to read the action sequence from the dataset.
+    action_sequence_keys: Sequence[str] = ("action",)
+    # Number of Raytron action dimensions that should be returned during inference.
+    action_dim: int = 14
+
+    # Repack transforms from LeRobot keys to inference-time keys expected by raytron_policy.
+    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
+        default=_transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "observation/head_rgb": "observation.images.head_rgb",
+                        "observation/left_arm_rgb": "observation.images.left_arm_rgb",
+                        "observation/right_arm_rgb": "observation.images.right_arm_rgb",
+                        "observation/state": "observation.state",
+                        "actions": "action",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+    )
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        if self.action_dim > model_config.action_dim:
+            raise ValueError(
+                f"Raytron action_dim ({self.action_dim}) cannot exceed model action_dim ({model_config.action_dim})"
+            )
+
+        data_transforms = _transforms.Group(
+            inputs=[raytron_policy.RaytronInputs(model_type=model_config.model_type)],
+            outputs=[raytron_policy.RaytronOutputs(action_dim=self.action_dim)],
+        )
+
+        if self.use_delta_joint_actions:
+            # 14D layout: [left_arm(6), left_gripper(1), right_arm(6), right_gripper(1)]
             delta_action_mask = _transforms.make_bool_mask(6, -1, 6, -1)
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
@@ -929,6 +991,26 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=20_000,
+    ),
+    #
+    # Raytron MuJoCo config (custom dual-arm robot).
+    #
+    TrainConfig(
+        name="pi05_raytron_mujoco",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_horizon=10,
+        ),
+        data=LeRobotRaytronDataConfig(
+            # Replace with your Raytron MuJoCo LeRobot dataset repo id.
+            repo_id="your_hf_username/raytron_mujoco",
+            base_config=DataConfig(prompt_from_task=True),
+            use_delta_joint_actions=True,
+            action_dim=14,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        num_train_steps=20_000,
+        batch_size=64,
     ),
     #
     # Debugging configs.
