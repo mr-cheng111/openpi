@@ -7,11 +7,14 @@
 - [ ] Confirm total DoF definition: `12 + 2 = 14` (dual-arm + two grippers)
 - [ ] Freeze action order: `left_arm(6), left_gripper(1), right_arm(6), right_gripper(1)`
 - [ ] Freeze state/proprio order to exactly match the action order
+- [ ] Freeze camera setup: 3 RGB cameras = `left_arm_rgb`, `right_arm_rgb`, `head_rgb`
+- [ ] Freeze camera resolution, fps, and timestamp alignment policy across all 3 cameras
 - [ ] Freeze control frequency and action horizon (ALOHA_SIM-like setup)
 
 Definition of done:
 - [ ] A one-page spec for `raytron` observation/action schema is written and versioned
 - [ ] All downstream scripts use the same 14D ordering
+- [ ] All downstream scripts use the same 3-camera RGB key names and image specs
 
 ### 0.2 Target objective in simulation
 - [ ] Confirm MuJoCo task list for Raytron (train/val/test task names)
@@ -49,21 +52,24 @@ Definition of done:
 
 ### 2.1 Raytron MuJoCo environment instrumentation
 - [ ] Implement/adapt Raytron MuJoCo env wrapper (ALOHA_SIM style runtime interface)
-- [ ] Finalize observation keys (camera image(s), wrist image(s), `observation/state`, `prompt`)
+- [ ] Finalize observation keys (`observation/left_arm_rgb`, `observation/right_arm_rgb`, `observation/head_rgb`, `observation/state`, `prompt`)
 - [ ] Finalize 14D action representation and clipping bounds
 - [ ] Add episode metadata logging (task id, seed, success/failure, reset reason)
 - [ ] Ensure timestamps are synchronized across observations/actions
+- [ ] Add per-camera health checks (missing frame, repeated frame, wrong shape/dtype)
 - [ ] Save one rollout video per episode (`.mp4`) for manual inspection
 
 Definition of done:
 - [ ] One episode can be replayed frame-by-frame
 - [ ] Logged fields match expected policy input/output schema
 - [ ] Video output is generated automatically per episode
+- [ ] All 3 RGB camera streams are present and synchronized in sampled episodes
 
 ### 2.2 Collection strategy
 - [ ] Define train/val/test split policy by task and random seed
 - [ ] Define coverage goals (initial poses, object variation, distractors, lighting/randomization)
 - [ ] Add quality filters (minimum episode length, non-zero action variance, valid termination)
+- [ ] Add camera quality filters (exposure outliers, black/blank frames, heavy motion blur)
 - [ ] Collect pilot set first (for example 100 to 500 episodes)
 - [ ] Review pilot videos and metadata, then fix collection bugs
 - [ ] Run large-scale unattended collection
@@ -77,6 +83,7 @@ Definition of done:
 ### 3.1 Conversion pipeline
 - [ ] Create/adapt conversion script for Raytron MuJoCo data
 - [ ] Map Raytron observations/actions to openpi policy fields
+- [ ] Ensure 3 RGB cameras map to fixed model inputs with deterministic channel order (HWC/RGB)
 - [ ] Explicitly validate 14D state/action ordering in converted data
 - [ ] Export episodes to LeRobot-compatible structure
 - [ ] Add dataset version tag and changelog
@@ -88,6 +95,7 @@ Definition of done:
 ### 3.2 Validation and normalization
 - [ ] Run schema validation on random sampled episodes
 - [ ] Verify tensor shapes, dtypes, and action bounds
+- [ ] Verify all 3 camera tensors have expected resolution, dtype, and value range
 - [ ] Compute normalization stats (`uv run scripts/compute_norm_stats.py --config-name <raytron_config>`)
 - [ ] Inspect `std`, `q01`, `q99` for abnormal dimensions
 
@@ -98,7 +106,7 @@ Definition of done:
 ## 4. Training (Raytron)
 
 ### 4.1 Training config
-- [ ] Add/adapt Raytron input/output mapping class (14D dual-arm schema)
+- [ ] Add/adapt Raytron input/output mapping class (14D dual-arm schema + 3-camera RGB inputs)
 - [ ] Add/adapt Raytron data config in training config
 - [ ] Create a dedicated config name (for example `pi05_raytron_mujoco`)
 - [ ] Define experiment naming and checkpoint retention policy
@@ -107,6 +115,7 @@ Definition of done:
 Definition of done:
 - [ ] `config-name` is runnable and documented
 - [ ] Artifact path layout is fixed
+- [ ] Ablation check completed: 3-camera input path works in a short sanity run
 
 ### 4.2 Training execution
 - [ ] Run small-budget sanity training first
@@ -129,6 +138,7 @@ Definition of done:
 - [ ] Run MuJoCo eval rollouts on held-out seeds/tasks
 - [ ] Compute success rate and episode efficiency metrics
 - [ ] Save rollout videos for both success and failure cases
+- [ ] Verify inference uses all 3 camera inputs online (not silently dropping any stream)
 - [ ] Cluster failure cases by mode (grasp miss, drift, collision, timeout, etc.)
 
 Recommended command template:
@@ -177,6 +187,7 @@ Definition of done:
 ## 8. Risk and Mitigation Checklist
 
 - [ ] Action/state order mismatch risk: add strict 14D schema assertions in collection + conversion
+- [ ] Multi-camera mismatch risk: enforce strict key/shape/timestamp checks for 3 RGB streams
 - [ ] Data schema drift risk: enforce schema checks before each training run
 - [ ] Norm stats instability risk: inspect low-variance dims and clamp if needed
 - [ ] Reproducibility risk: lock seed, config hash, dataset version, dependency versions
